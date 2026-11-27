@@ -51,6 +51,8 @@ if not vex_only:
 def load_var(spec):
     path, var = spec.rsplit(':', 1); m = importlib.util.spec_from_file_location('prelude_mod', path); mod = importlib.util.module_from_spec(m); m.loader.exec_module(mod); return getattr(mod, var)
 prelude = '\n'.join(load_var(p) for p in preludes)
+DEFRE = re.compile(r'^\s*(void|float|int|vector|vector2|vector4|string|matrix3|matrix)\s+\w+\s*\(', re.M)
+auto_lib = '\n'.join(n.value for n in ast.walk(tree) if isinstance(n, ast.Constant) and isinstance(n.value, str) and len(n.value) > 40 and DEFRE.search(n.value) and 'addpoint(geoself()' not in n.value.split('{')[0])      # strings that define VEX functions: tried as a prefix when a snippet calls a function defined in another string
 MARK = re.compile(r'@P|\bchf\(|\bchi\(|addpoint\(|addprim\(|setedgegroup\(|\b[ivfs]@\w+|geoself\(\)|prim_normal\(')
 def guess_class(s):
     if 'vertexpoint(' in s or '@vtxnum' in s: return 'vertex'
@@ -62,7 +64,7 @@ for node in ast.walk(tree):
     if isinstance(node, ast.Constant) and isinstance(node.value, str) and len(node.value) > 40 and MARK.search(node.value):
         s = node.value
         if '%' in s and 'cos' not in s and 'chf' not in s and 'addpoint' not in s: continue
-        for variant in (s, prelude + '\n' + s if prelude else None):
+        for variant in (s, prelude + '\n' + s if prelude else None, auto_lib + '\n' + s if auto_lib and auto_lib != s else None):
             if variant is None: continue
             wr.parm('class').set(guess_class(variant)); wr.parm('snippet').set(variant)
             try: wr.cook(force=True)
